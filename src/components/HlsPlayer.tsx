@@ -113,15 +113,15 @@ export function HlsPlayer({ src, segmentSrc, segmentDuration, autoPlay = true, c
 
   if (!src && !segmentSrc) {
     return (
-      <div className={`w-full aspect-video max-h-[70vh] min-h-[240px] ${className ?? ""}`} style={{ background: "hsl(var(--muted))", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", color: "hsl(var(--muted-foreground))" }}>
+      <div className={`w-full aspect-video max-h-full min-h-[180px] ${className ?? ""}`} style={{ background: "hsl(var(--muted))", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", color: "hsl(var(--muted-foreground))" }}>
         Select a stream to preview
       </div>
     )
   }
 
   return (
-    <div className="space-y-1">
-      <div className="w-full aspect-video max-h-[70vh] min-h-[240px] bg-black rounded-lg overflow-hidden flex items-center justify-center">
+    <div className="space-y-1 w-full min-h-0">
+      <div className="w-full aspect-video max-h-full min-h-0 bg-black rounded-lg overflow-hidden flex items-center justify-center">
         <video
           ref={videoRef}
           className={className}

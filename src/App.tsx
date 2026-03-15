@@ -18,7 +18,7 @@ import {
   type EventItem,
   type InspectResult,
 } from "./store"
-import { Radio, AlertCircle, List, ArrowLeft, Download } from "lucide-react"
+import { Radio, AlertCircle, List, ArrowLeft, Download, Menu, X } from "lucide-react"
 
 type View = "streams" | "issues" | "inspect"
 
@@ -59,6 +59,7 @@ function App() {
   const [selectedPlaylistVariantIndex, setSelectedPlaylistVariantIndex] = useState(0)
   const [selectedSegmentUrl, setSelectedSegmentUrl] = useState<string | null>(null)
   const [selectedSegmentDuration, setSelectedSegmentDuration] = useState<number | null>(null)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
   const mediaCount = detail?.result?.media_playlists?.length ?? 0
   const segmentVariantIndex = Math.min(selectedSegmentVariantIndex, Math.max(0, mediaCount - 1))
   const playlistVariantIndex = Math.min(selectedPlaylistVariantIndex, Math.max(0, mediaCount - 1))
@@ -197,44 +198,74 @@ function App() {
 
   const variants = detail?.result?.master?.playlists ?? []
 
+  const closeSidebar = () => setSidebarOpen(false)
+
   return (
-    <div className="flex h-screen bg-background text-foreground">
-      {/* Sidebar */}
-      <aside className="w-64 border-r border-border bg-card flex flex-col shrink-0">
+    <div className="flex h-screen bg-background text-foreground overflow-hidden">
+      {/* Mobile menu backdrop */}
+      <button
+        type="button"
+        aria-label="Close menu"
+        className={`fixed inset-0 z-30 bg-black/50 md:hidden transition-opacity ${sidebarOpen ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+        onClick={closeSidebar}
+      />
+
+      {/* Sidebar — drawer on mobile, always visible on md+ */}
+      <aside
+        className={`fixed md:relative inset-y-0 left-0 z-40 w-64 border-r border-border bg-card flex flex-col shrink-0 transition-transform duration-200 ease-out ${sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}`}
+      >
         <div className="p-4 min-h-[4.5rem] flex flex-col justify-center border-b border-border">
-          <div className="flex items-center gap-2">
-            <Radio className="h-5 w-5 text-primary" />
-            <span className="font-semibold">HLS Inspector</span>
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <Radio className="h-5 w-5 text-primary shrink-0" />
+              <span className="font-semibold truncate">HLS Inspector</span>
+            </div>
+            <Button variant="ghost" size="icon" className="md:hidden h-10 w-10 shrink-0 touch-manipulation" aria-label="Close menu" onClick={closeSidebar}>
+              <X className="h-5 w-5" />
+            </Button>
           </div>
           <p className="text-xs text-muted-foreground mt-1">Runs in your browser — no server</p>
         </div>
         <nav className="p-2 flex flex-col gap-1">
           <Button
             variant={view === "streams" ? "secondary" : "ghost"}
-            className="justify-start"
-            onClick={() => setView("streams")}
+            className="justify-start min-h-[44px] touch-manipulation"
+            onClick={() => { setView("streams"); closeSidebar() }}
           >
-            <List className="h-4 w-4 mr-2" />
+            <List className="h-4 w-4 mr-2 shrink-0" />
             Streams
           </Button>
           <Button
             variant={view === "issues" ? "secondary" : "ghost"}
-            className="justify-start"
-            onClick={() => setView("issues")}
+            className="justify-start min-h-[44px] touch-manipulation"
+            onClick={() => { setView("issues"); closeSidebar() }}
           >
-            <AlertCircle className="h-4 w-4 mr-2" />
+            <AlertCircle className="h-4 w-4 mr-2 shrink-0" />
             Recent issues
           </Button>
         </nav>
       </aside>
 
       {/* Main — add stream is only here at top of right section */}
-      <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
+      <main className="flex-1 flex flex-col min-w-0 overflow-hidden pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]">
+        {/* Mobile header with menu button */}
+        <div className="md:hidden shrink-0 flex items-center gap-3 p-3 border-b border-border bg-card/80">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-11 w-11 shrink-0 touch-manipulation"
+            aria-label="Open menu"
+            onClick={() => setSidebarOpen(true)}
+          >
+            <Menu className="h-5 w-5" />
+          </Button>
+          <span className="font-semibold truncate">HLS Inspector</span>
+        </div>
         {view === "streams" && (
           <>
             <div className="p-4 border-b border-border bg-card/50">
-              <form onSubmit={handleAddStream} className="flex flex-wrap items-end gap-3">
-                <div className="flex-1 min-w-[220px] space-y-1.5">
+              <form onSubmit={handleAddStream} className="flex flex-col sm:flex-row sm:flex-wrap sm:items-end gap-3">
+                <div className="flex-1 min-w-0 w-full sm:min-w-[220px] space-y-1.5">
                   <Label className="text-xs text-muted-foreground">Master or media playlist URL</Label>
                   <Input
                     type="url"
@@ -242,19 +273,20 @@ function App() {
                     value={addUrl}
                     onChange={(e) => setAddUrl(e.target.value)}
                     required
-                    className="w-full"
+                    className="w-full text-base sm:text-sm"
                   />
                 </div>
-                <div className="min-w-[200px] w-72 space-y-1.5">
+                <div className="w-full sm:min-w-[200px] sm:w-72 space-y-1.5">
                   <Label className="text-xs text-muted-foreground">Label (optional)</Label>
                   <Input
                     type="text"
                     placeholder="e.g. Channel A"
                     value={addLabel}
                     onChange={(e) => setAddLabel(e.target.value)}
+                    className="text-base sm:text-sm"
                   />
                 </div>
-                <Button type="submit">Add stream</Button>
+                <Button type="submit" className="min-h-[44px] touch-manipulation w-full sm:w-auto">Add stream</Button>
                 {addError && <p className="text-sm text-destructive w-full">{addError}</p>}
               </form>
             </div>
@@ -269,7 +301,7 @@ function App() {
                   streams.map((s) => (
                     <Card
                       key={s.id}
-                      className="cursor-pointer hover:border-primary/50 transition-colors"
+                      className="cursor-pointer hover:border-primary/50 active:scale-[0.99] transition-colors touch-manipulation min-h-[44px]"
                       onClick={() => loadDetail(s.id)}
                     >
                       <CardHeader className="pb-2">
@@ -301,7 +333,7 @@ function App() {
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="h-7 text-xs text-muted-foreground hover:text-destructive"
+                            className="min-h-[44px] touch-manipulation text-xs text-muted-foreground hover:text-destructive"
                             onClick={(e) => handleRemove(e, s.id)}
                           >
                             Remove
@@ -344,22 +376,22 @@ function App() {
 
         {view === "inspect" && detail && (
           <>
-            <div className="p-4 min-h-[4.5rem] flex items-center gap-4 border-b border-border">
-              <Button variant="outline" size="sm" onClick={() => { setView("streams"); setSelectedId(null); setDetail(null); setPlayUrl(null); setSelectedSegmentUrl(null); setSelectedSegmentDuration(null) }}>
-                <ArrowLeft className="h-4 w-4 mr-1" />
+            <div className="p-3 sm:p-4 min-h-[4.5rem] flex flex-wrap items-center gap-2 sm:gap-4 border-b border-border">
+              <Button variant="outline" size="sm" className="min-h-[44px] touch-manipulation shrink-0" onClick={() => { setView("streams"); setSelectedId(null); setDetail(null); setPlayUrl(null); setSelectedSegmentUrl(null); setSelectedSegmentDuration(null) }}>
+                <ArrowLeft className="h-4 w-4 mr-1 shrink-0" />
                 Back
               </Button>
-              <h1 className="text-lg font-semibold truncate flex-1">
+              <h1 className="text-base sm:text-lg font-semibold truncate flex-1 min-w-0">
                 {detail.label || detail.url.replace(/^https?:\/\//, "").slice(0, 50)}
               </h1>
-              <Button onClick={handleInspect} disabled={inspectLoading}>
+              <Button onClick={handleInspect} disabled={inspectLoading} className="min-h-[44px] touch-manipulation shrink-0">
                 {inspectLoading ? "Running…" : "Inspect now"}
               </Button>
             </div>
-            <div className="flex-1 flex min-h-0 overflow-hidden">
-              {/* Left: video + variant */}
-              <div className="w-[65%] shrink-0 flex flex-col border-r border-border bg-muted/20 p-4 gap-3">
-                <div className="rounded-lg overflow-hidden bg-black w-full aspect-video max-h-[70vh] min-h-[240px] flex items-center justify-center shrink-0">
+            <div className="flex-1 flex flex-col lg:flex-row min-h-0 overflow-hidden">
+              {/* Left: video + variant — full width on mobile, 65% on lg+ */}
+              <div className="w-full lg:w-[65%] shrink-0 flex flex-col border-b lg:border-b-0 lg:border-r border-border bg-muted/20 p-4 gap-3">
+                <div className="rounded-lg overflow-hidden bg-black w-full aspect-video max-h-[45vh] sm:max-h-[55vh] lg:max-h-[70vh] min-h-[200px] lg:min-h-[240px] flex items-center justify-center shrink-0">
                   <HlsPlayer src={playUrl} segmentSrc={selectedSegmentUrl} segmentDuration={selectedSegmentDuration} autoPlay className="w-full h-full object-contain" />
                 </div>
                 {selectedSegmentUrl && (
@@ -393,13 +425,13 @@ function App() {
               </div>
               {/* Right: tabs + long content */}
               <Tabs defaultValue="overview" className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
-                <div className="px-4 py-2 shrink-0 border-b border-border">
-                  <TabsList className="h-9">
-                    <TabsTrigger value="overview">Overview</TabsTrigger>
-                    <TabsTrigger value="segments">Variants & segments</TabsTrigger>
-                    <TabsTrigger value="captions">Captions</TabsTrigger>
-                    <TabsTrigger value="scte35">SCTE-35</TabsTrigger>
-                    <TabsTrigger value="playlist">Playlist</TabsTrigger>
+                <div className="px-2 sm:px-4 py-2 shrink-0 border-b border-border overflow-x-auto -mx-2 sm:mx-0">
+                  <TabsList className="h-9 inline-flex w-max min-w-full sm:min-w-0 flex-nowrap">
+                    <TabsTrigger value="overview" className="touch-manipulation shrink-0">Overview</TabsTrigger>
+                    <TabsTrigger value="segments" className="touch-manipulation shrink-0">Segments</TabsTrigger>
+                    <TabsTrigger value="captions" className="touch-manipulation shrink-0">Captions</TabsTrigger>
+                    <TabsTrigger value="scte35" className="touch-manipulation shrink-0">SCTE-35</TabsTrigger>
+                    <TabsTrigger value="playlist" className="touch-manipulation shrink-0">Playlist</TabsTrigger>
                   </TabsList>
                 </div>
                 <div className="flex-1 flex flex-col min-h-0 overflow-hidden p-4">
@@ -613,13 +645,13 @@ function App() {
                                       return (
                                         <tr
                                           key={displayIndex}
-                                          className={`border-b border-border cursor-pointer hover:bg-muted/50 ${isSelected ? "bg-primary/10" : ""}`}
+                                          className={`border-b border-border cursor-pointer hover:bg-muted/50 active:bg-muted/70 min-h-[44px] ${isSelected ? "bg-primary/10" : ""}`}
                                           onClick={() => { setSelectedSegmentUrl(seg.uri); setSelectedSegmentDuration(seg.duration) }}
                                         >
-                                          <td className="py-1">{displayIndex}</td>
-                                          <td className="py-1">{seg.duration}</td>
-                                          <td className="py-1">{seg.discontinuity ? "yes" : ""}</td>
-                                          <td className="py-1" onClick={(e) => e.stopPropagation()}>
+                                          <td className="py-2 sm:py-1">{displayIndex}</td>
+                                          <td className="py-2 sm:py-1">{seg.duration}</td>
+                                          <td className="py-2 sm:py-1">{seg.discontinuity ? "yes" : ""}</td>
+                                          <td className="py-2 sm:py-1" onClick={(e) => e.stopPropagation()}>
                                             <a href={seg.uri} download target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-primary hover:underline" title="Download segment">
                                               <Download className="h-3.5 w-3.5" />
                                               Download
