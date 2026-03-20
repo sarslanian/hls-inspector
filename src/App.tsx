@@ -18,6 +18,7 @@ import {
   type EventItem,
   type InspectResult,
 } from "./store"
+import { streamDisplayName } from "@/lib/utils"
 import { Radio, AlertCircle, List, ArrowLeft, Download, Menu, X, Copy, Check } from "lucide-react"
 
 type View = "streams" | "issues" | "inspect"
@@ -351,7 +352,7 @@ function App() {
                             }`}
                           />
                           <CardTitle className="text-sm font-medium truncate">
-                            {s.label || s.url.replace(/^https?:\/\//, "").slice(0, 40)}
+                            {streamDisplayName(s.url, s.label)}
                           </CardTitle>
                         </div>
                       </CardHeader>
@@ -398,7 +399,7 @@ function App() {
                     <Card key={`${e.stream_id}-${e.at}-${e.kind}-${i}`} className={e.severity === "error" ? "border-l-4 border-l-destructive" : "border-l-4 border-l-yellow-500"}>
                       <CardContent className="py-3">
                         <p className="text-xs text-muted-foreground">
-                          {e.stream_label || e.stream_id} · {e.kind} · {new Date(e.at).toLocaleString()}
+                          {e.stream_label?.trim() || (() => { const s = streams.find(s => s.id === e.stream_id); return s ? streamDisplayName(s.url, s.label) : e.stream_id })()}{" "}· {e.kind} · {new Date(e.at).toLocaleString()}
                         </p>
                         <p className="text-sm mt-1">{e.message}</p>
                       </CardContent>
@@ -436,7 +437,7 @@ function App() {
                 Back
               </Button>
               <h1 className="text-base sm:text-lg font-semibold truncate flex-1 min-w-0">
-                {detail.label || detail.url.replace(/^https?:\/\//, "").slice(0, 50)}
+                {streamDisplayName(detail.url, detail.label)}
               </h1>
               <CopyUrlButton url={detail.url} className="shrink-0" />
               <Button onClick={handleInspect} disabled={inspectLoading} className="min-h-[44px] touch-manipulation shrink-0">
