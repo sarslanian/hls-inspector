@@ -18,9 +18,30 @@ import {
   type EventItem,
   type InspectResult,
 } from "./store"
-import { Radio, AlertCircle, List, ArrowLeft, Download, Menu, X } from "lucide-react"
+import { Radio, AlertCircle, List, ArrowLeft, Download, Menu, X, Copy, Check } from "lucide-react"
 
 type View = "streams" | "issues" | "inspect"
+
+function CopyUrlButton({ url, className }: { url: string; className?: string }) {
+  const [copied, setCopied] = useState(false)
+  const handleCopy = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    navigator.clipboard.writeText(url).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }
+  return (
+    <button
+      type="button"
+      onClick={handleCopy}
+      title={copied ? "Copied!" : "Copy HLS URL"}
+      className={`inline-flex items-center justify-center rounded p-1 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors min-h-[36px] min-w-[36px] touch-manipulation ${className ?? ""}`}
+    >
+      {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+    </button>
+  )
+}
 
 const POLL_INTERVAL_MS = 10_000
 
@@ -335,9 +356,12 @@ function App() {
                         </div>
                       </CardHeader>
                       <CardContent className="pt-0">
-                        <p className="text-xs text-muted-foreground truncate" title={s.url}>
-                          {s.url}
-                        </p>
+                        <div className="flex items-center gap-1 min-w-0">
+                          <p className="text-xs text-muted-foreground truncate flex-1 min-w-0" title={s.url}>
+                            {s.url}
+                          </p>
+                          <CopyUrlButton url={s.url} />
+                        </div>
                         <div className="flex items-center justify-between mt-2 pt-2 border-t border-border">
                           <span className="text-xs text-muted-foreground">
                             {s.state?.last_check ? new Date(s.state.last_check).toLocaleTimeString() : "—"}
@@ -414,6 +438,7 @@ function App() {
               <h1 className="text-base sm:text-lg font-semibold truncate flex-1 min-w-0">
                 {detail.label || detail.url.replace(/^https?:\/\//, "").slice(0, 50)}
               </h1>
+              <CopyUrlButton url={detail.url} className="shrink-0" />
               <Button onClick={handleInspect} disabled={inspectLoading} className="min-h-[44px] touch-manipulation shrink-0">
                 {inspectLoading ? "Running…" : "Inspect now"}
               </Button>
