@@ -114,6 +114,12 @@ export function removeStream(streams: Stream[], id: string): Stream[] {
   return list
 }
 
+export function renameStream(streams: Stream[], id: string, label: string | null): Stream[] {
+  const list = streams.map((s) => s.id === id ? { ...s, label: label?.trim() || null } : s)
+  saveStreams(list)
+  return list
+}
+
 export function onInspectEvents(
   streamId: string,
   streamLabel: string | null,
