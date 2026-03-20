@@ -67,7 +67,16 @@ export type MediaPlaylist = {
   raw: string
   rawLines: string[]
   /** EXT-X-KEY: encryption method and key URI */
-  encryption?: { method: string; uri?: string }
+  encryption?: {
+    method: string
+    uri?: string
+    /** EXT-X-KEY: IV attribute (often a 16-byte hex string like 0x...). */
+    iv?: string
+    /** EXT-X-KEY: KEYFORMAT attribute (e.g. "identity"). */
+    keyFormat?: string
+    /** EXT-X-KEY: KEYFORMATVERSIONS attribute. */
+    keyFormatVersions?: string
+  }
   /** EXT-X-MAP: init segment (fMP4) */
   initSegment?: { uri: string }
   /** Inferred from segment URIs or EXT-X-MAP: ts | fmp4 */
@@ -168,9 +177,15 @@ export function parseMedia(text: string, baseUrl: string): MediaPlaylist {
     if (line.startsWith("#EXT-X-KEY:")) {
       const methodMatch = line.match(/METHOD=([^,\s]+)/i)
       const uriMatch = line.match(/URI="([^"]+)"|URI=([^,\s]+)/i)
+      const ivMatch = line.match(/IV="([^"]+)"|IV=([^,\s]+)/i)
+      const keyFormatMatch = line.match(/KEYFORMAT="([^"]+)"|KEYFORMAT=([^,\s]+)/i)
+      const keyFormatVersionsMatch = line.match(/KEYFORMATVERSIONS="([^"]+)"|KEYFORMATVERSIONS=([^,\s]+)/i)
       encryption = {
         method: methodMatch ? methodMatch[1] : "NONE",
         uri: uriMatch ? (uriMatch[1] ?? uriMatch[2] ?? "").trim() : undefined,
+        iv: ivMatch ? (ivMatch[1] ?? ivMatch[2] ?? "").trim() : undefined,
+        keyFormat: keyFormatMatch ? (keyFormatMatch[1] ?? keyFormatMatch[2] ?? "").trim() : undefined,
+        keyFormatVersions: keyFormatVersionsMatch ? (keyFormatVersionsMatch[1] ?? keyFormatVersionsMatch[2] ?? "").trim() : undefined,
       }
       if (encryption.uri) encryption.uri = resolveUri(encryption.uri, baseUrl)
       continue

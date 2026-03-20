@@ -62,6 +62,9 @@ function App() {
   const [selectedSegmentInitSegmentUri, setSelectedSegmentInitSegmentUri] = useState<string | null>(null)
   const [selectedSegmentKeyMethod, setSelectedSegmentKeyMethod] = useState<string | null>(null)
   const [selectedSegmentKeyUri, setSelectedSegmentKeyUri] = useState<string | null>(null)
+  const [selectedSegmentKeyIV, setSelectedSegmentKeyIV] = useState<string | null>(null)
+  const [selectedSegmentKeyFormat, setSelectedSegmentKeyFormat] = useState<string | null>(null)
+  const [selectedSegmentKeyFormatVersions, setSelectedSegmentKeyFormatVersions] = useState<string | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const mediaCount = detail?.result?.media_playlists?.length ?? 0
   const segmentVariantIndex = Math.min(selectedSegmentVariantIndex, Math.max(0, mediaCount - 1))
@@ -82,6 +85,9 @@ function App() {
     setSelectedSegmentInitSegmentUri(null)
     setSelectedSegmentKeyMethod(null)
     setSelectedSegmentKeyUri(null)
+    setSelectedSegmentKeyIV(null)
+    setSelectedSegmentKeyFormat(null)
+    setSelectedSegmentKeyFormatVersions(null)
     setView("inspect")
     const result = lastResultByStreamId[id]
     setDetail({ ...stream, result: result ?? null })
@@ -96,7 +102,7 @@ function App() {
   streamsRef.current = streams
   const streamIds = streams.map((s) => s.id).sort().join(",")
   useEffect(() => {
-    if (streams.length === 0) return
+    if (!streamIds) return
     const runPoll = async () => {
       const list = streamsRef.current
       for (const stream of list) {
@@ -397,6 +403,9 @@ function App() {
                   setSelectedSegmentInitSegmentUri(null)
                   setSelectedSegmentKeyMethod(null)
                   setSelectedSegmentKeyUri(null)
+                    setSelectedSegmentKeyIV(null)
+                    setSelectedSegmentKeyFormat(null)
+                    setSelectedSegmentKeyFormatVersions(null)
                 }}
               >
                 <ArrowLeft className="h-4 w-4 mr-1 shrink-0" />
@@ -420,6 +429,9 @@ function App() {
                     segmentInitSegmentUri={selectedSegmentInitSegmentUri}
                     segmentKeyMethod={selectedSegmentKeyMethod}
                     segmentKeyUri={selectedSegmentKeyUri}
+                    segmentKeyIV={selectedSegmentKeyIV}
+                    segmentKeyFormat={selectedSegmentKeyFormat}
+                    segmentKeyFormatVersions={selectedSegmentKeyFormatVersions}
                     autoPlay
                     className="w-full h-full object-contain"
                   />
@@ -435,6 +447,9 @@ function App() {
                         setSelectedSegmentInitSegmentUri(null)
                         setSelectedSegmentKeyMethod(null)
                         setSelectedSegmentKeyUri(null)
+                        setSelectedSegmentKeyIV(null)
+                        setSelectedSegmentKeyFormat(null)
+                        setSelectedSegmentKeyFormatVersions(null)
                       }}
                     >
                       Back to full HLS
@@ -454,6 +469,9 @@ function App() {
                         setSelectedSegmentInitSegmentUri(null)
                         setSelectedSegmentKeyMethod(null)
                         setSelectedSegmentKeyUri(null)
+                        setSelectedSegmentKeyIV(null)
+                        setSelectedSegmentKeyFormat(null)
+                        setSelectedSegmentKeyFormatVersions(null)
                       }}
                       className="w-full"
                     >
@@ -617,6 +635,9 @@ function App() {
                               setSelectedSegmentInitSegmentUri(null)
                               setSelectedSegmentKeyMethod(null)
                               setSelectedSegmentKeyUri(null)
+                              setSelectedSegmentKeyIV(null)
+                              setSelectedSegmentKeyFormat(null)
+                              setSelectedSegmentKeyFormatVersions(null)
                             }}
                             className="max-w-xs"
                           >
@@ -702,6 +723,9 @@ function App() {
                                             setSelectedSegmentInitSegmentUri(mp.init_segment?.uri ?? null)
                                             setSelectedSegmentKeyMethod(mp.encryption?.method ?? null)
                                             setSelectedSegmentKeyUri(mp.encryption?.uri ?? null)
+                                            setSelectedSegmentKeyIV(mp.encryption?.iv ?? null)
+                                            setSelectedSegmentKeyFormat(mp.encryption?.keyFormat ?? null)
+                                            setSelectedSegmentKeyFormatVersions(mp.encryption?.keyFormatVersions ?? null)
                                           }}
                                         >
                                           <td className="py-2 sm:py-1">{displayIndex}</td>

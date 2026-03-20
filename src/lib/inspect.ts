@@ -33,7 +33,13 @@ export type MediaPlaylistResult = {
   segments: { uri: string; duration: number; discontinuity?: boolean }[]
   raw?: string
   raw_lines?: string[]
-  encryption?: { method: string; uri?: string }
+  encryption?: {
+    method: string
+    uri?: string
+    iv?: string
+    keyFormat?: string
+    keyFormatVersions?: string
+  }
   init_segment?: { uri: string }
   segment_format?: "ts" | "fmp4"
 }

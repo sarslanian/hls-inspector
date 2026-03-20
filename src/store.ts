@@ -53,7 +53,13 @@ export type InspectResult = {
     media_sequence?: number
     segments?: { uri: string; duration: number; discontinuity?: boolean }[]
     raw?: string
-    encryption?: { method: string; uri?: string }
+    encryption?: {
+      method: string
+      uri?: string
+      iv?: string
+      keyFormat?: string
+      keyFormatVersions?: string
+    }
     init_segment?: { uri: string }
     segment_format?: "ts" | "fmp4"
   }[]
