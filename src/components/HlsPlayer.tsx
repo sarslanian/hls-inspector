@@ -5,32 +5,87 @@ type Props = {
   src: string | null
   segmentSrc?: string | null
   segmentDuration?: number | null
+  segmentInitSegmentUri?: string | null
+  segmentKeyMethod?: string | null
+  segmentKeyUri?: string | null
+  segmentKeyIV?: string | null
+  segmentKeyFormat?: string | null
+  segmentKeyFormatVersions?: string | null
   autoPlay?: boolean
   className?: string
 }
 
-/** Build a minimal single-segment m3u8 so HLS.js can play one segment (works for .ts and .m4s). */
-function buildSingleSegmentM3u8(segmentUri: string, durationSeconds: number): string {
+type SingleSegmentM3u8Options = {
+  /** EXT-X-MAP URI for fMP4/CMAF segments. */
+  initSegmentUri?: string | null
+  /** Optional EXT-X-KEY for encrypted segments. */
+  keyMethod?: string | null
+  keyUri?: string | null
+  keyIV?: string | null
+  keyFormat?: string | null
+  keyFormatVersions?: string | null
+}
+
+/** Build a minimal single-segment m3u8 so HLS.js/native Safari can play one segment. */
+function buildSingleSegmentM3u8(segmentUri: string, durationSeconds: number, options: SingleSegmentM3u8Options): string {
   const duration = Math.max(0.1, durationSeconds)
   const targetDuration = Math.ceil(duration)
+  const initSegmentUri = options.initSegmentUri ?? null
+  const keyMethod = options.keyMethod ?? null
+  const keyUri = options.keyUri ?? null
+  const keyIV = options.keyIV ?? null
+  const keyFormat = options.keyFormat ?? null
+  const keyFormatVersions = options.keyFormatVersions ?? null
+
+  // HLS.js supports multiple versions for TS, but for fMP4 we typically need EXT-X-MAP which is
+  // specified for later versions. Using 7 when an init segment is present is the most compatible.
+  const version = initSegmentUri ? 7 : 3
+
+  const keyLineParts: string[] = []
+  if (keyMethod && keyMethod !== "NONE") {
+    keyLineParts.push(`METHOD=${keyMethod}`)
+    if (keyUri) keyLineParts.push(`URI="${keyUri}"`)
+    if (keyIV) keyLineParts.push(`IV=${keyIV}`)
+    if (keyFormat) keyLineParts.push(`KEYFORMAT="${keyFormat}"`)
+    if (keyFormatVersions) keyLineParts.push(`KEYFORMATVERSIONS=${keyFormatVersions}`)
+  }
+  const keyLine = keyLineParts.length > 0 ? [`#EXT-X-KEY:${keyLineParts.join(",")}`] : []
+
   return [
     "#EXTM3U",
-    "#EXT-X-VERSION:3",
+    `#EXT-X-VERSION:${version}`,
     `#EXT-X-TARGETDURATION:${targetDuration}`,
     "#EXT-X-MEDIA-SEQUENCE:0",
+    ...(initSegmentUri ? [`#EXT-X-MAP:URI="${initSegmentUri}"`] : []),
+    ...keyLine,
     `#EXTINF:${duration.toFixed(3)},`,
     segmentUri,
     "#EXT-X-ENDLIST",
   ].join("\n")
 }
 
-export function HlsPlayer({ src, segmentSrc, segmentDuration, autoPlay = true, className }: Props) {
+export function HlsPlayer({
+  src,
+  segmentSrc,
+  segmentDuration,
+  segmentInitSegmentUri,
+  segmentKeyMethod,
+  segmentKeyUri,
+  segmentKeyIV,
+  segmentKeyFormat,
+  segmentKeyFormatVersions,
+  autoPlay = true,
+  className,
+}: Props) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const hlsRef = useRef<Hls | null>(null)
   const blobUrlRef = useRef<string | null>(null)
   const [segmentError, setSegmentError] = useState<string | null>(null)
 
   const isSegmentMode = segmentSrc != null && segmentSrc !== "" && segmentDuration != null
+  const canPlayNativeHls = typeof document !== "undefined" ? Boolean(document.createElement("video").canPlayType("application/vnd.apple.mpegurl")) : false
+  const unsupportedSegmentPlayback = isSegmentMode && !canPlayNativeHls && !Hls.isSupported()
+  const encryptionMissing = isSegmentMode && segmentKeyMethod != null && segmentKeyMethod !== "NONE" && !segmentKeyUri
 
   // Playlist mode: HLS.js with main src
   useEffect(() => {
@@ -67,7 +122,6 @@ export function HlsPlayer({ src, segmentSrc, segmentDuration, autoPlay = true, c
   // Segment mode: build single-segment m3u8, blob URL, and play with HLS.js
   useEffect(() => {
     if (!isSegmentMode || !segmentSrc || segmentDuration == null) {
-      setSegmentError(null)
       if (blobUrlRef.current) {
         URL.revokeObjectURL(blobUrlRef.current)
         blobUrlRef.current = null
@@ -76,28 +130,81 @@ export function HlsPlayer({ src, segmentSrc, segmentDuration, autoPlay = true, c
     }
 
     const video = videoRef.current
-    if (!video || !Hls.isSupported()) {
-      setSegmentError("HLS.js is required for segment playback.")
+    if (!video) {
       return
     }
 
-    setSegmentError(null)
     if (hlsRef.current) {
       hlsRef.current.destroy()
       hlsRef.current = null
     }
 
-    const m3u8 = buildSingleSegmentM3u8(segmentSrc, segmentDuration)
+    // Encrypted playback needs EXT-X-KEY (with URI). Fail loudly rather than
+    // silently generating an unencrypted playlist.
+    if (encryptionMissing) {
+      if (blobUrlRef.current) {
+        URL.revokeObjectURL(blobUrlRef.current)
+        blobUrlRef.current = null
+      }
+      video.removeAttribute("src")
+      video.load()
+      return () => setSegmentError(null)
+    }
+
+    const m3u8 = buildSingleSegmentM3u8(segmentSrc, segmentDuration, {
+      initSegmentUri: segmentInitSegmentUri ?? null,
+      keyMethod: segmentKeyMethod ?? null,
+      keyUri: segmentKeyUri ?? null,
+      keyIV: segmentKeyIV ?? null,
+      keyFormat: segmentKeyFormat ?? null,
+      keyFormatVersions: segmentKeyFormatVersions ?? null,
+    })
     const blob = new Blob([m3u8], { type: "application/vnd.apple.mpegurl" })
     const blobUrl = URL.createObjectURL(blob)
     blobUrlRef.current = blobUrl
+
+    const canNative = video.canPlayType("application/vnd.apple.mpegurl")
+    const useNative = Boolean(canNative)
+
+    // Safari/iOS can play HLS natively; Firefox/other browsers typically use MediaSource via hls.js.
+    if (useNative) {
+      const onVideoError = () => {
+        setSegmentError("Segment failed to play (native HLS).")
+      }
+      video.addEventListener("error", onVideoError)
+      video.src = blobUrl
+      video.load()
+
+      return () => {
+        video.removeEventListener("error", onVideoError)
+        video.removeAttribute("src")
+        video.load()
+        if (blobUrlRef.current) {
+          URL.revokeObjectURL(blobUrlRef.current)
+          blobUrlRef.current = null
+        }
+        setSegmentError(null)
+      }
+    }
+
+    if (!Hls.isSupported()) {
+      // Ensure the generated blob URL is always revoked even when we can't play.
+      if (blobUrlRef.current) {
+        URL.revokeObjectURL(blobUrlRef.current)
+        blobUrlRef.current = null
+      }
+      video.removeAttribute("src")
+      video.load()
+      return () => setSegmentError(null)
+    }
 
     const hls = new Hls({ enableWorker: true })
     hlsRef.current = hls
     hls.loadSource(blobUrl)
     hls.attachMedia(video)
     hls.on(Hls.Events.ERROR, (_e, data) => {
-      if (data.fatal) setSegmentError(data.type === "networkError" ? "Segment failed to load (network or CORS)." : "Playback error.")
+      if (!data.fatal) return
+      setSegmentError(data.type === "networkError" ? "Segment failed to load (network or CORS)." : "Playback error.")
     })
 
     return () => {
@@ -107,9 +214,22 @@ export function HlsPlayer({ src, segmentSrc, segmentDuration, autoPlay = true, c
         URL.revokeObjectURL(blobUrlRef.current)
         blobUrlRef.current = null
       }
+      video.removeAttribute("src")
+      video.load()
       setSegmentError(null)
     }
-  }, [segmentSrc, segmentDuration, isSegmentMode])
+  }, [
+    segmentSrc,
+    segmentDuration,
+    segmentInitSegmentUri,
+    segmentKeyMethod,
+    segmentKeyUri,
+    segmentKeyIV,
+    segmentKeyFormat,
+    segmentKeyFormatVersions,
+    isSegmentMode,
+    encryptionMissing,
+  ])
 
   if (!src && !segmentSrc) {
     return (
@@ -132,7 +252,16 @@ export function HlsPlayer({ src, segmentSrc, segmentDuration, autoPlay = true, c
           style={{ width: "100%", height: "100%", objectFit: "contain", borderRadius: 8 }}
         />
       </div>
-      {segmentError && <p className="text-xs text-destructive">{segmentError}</p>}
+      {(() => {
+        const derivedError =
+          encryptionMissing
+            ? "Encrypted segments require the key URI (EXT-X-KEY:URI) to play this preview."
+            : isSegmentMode
+              ? segmentError
+              : null
+        const message = derivedError ?? (unsupportedSegmentPlayback ? "HLS playback is not supported in this browser." : null)
+        return message ? <p className="text-xs text-destructive">{message}</p> : null
+      })()}
     </div>
   )
 }

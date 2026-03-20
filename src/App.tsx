@@ -59,6 +59,12 @@ function App() {
   const [selectedPlaylistVariantIndex, setSelectedPlaylistVariantIndex] = useState(0)
   const [selectedSegmentUrl, setSelectedSegmentUrl] = useState<string | null>(null)
   const [selectedSegmentDuration, setSelectedSegmentDuration] = useState<number | null>(null)
+  const [selectedSegmentInitSegmentUri, setSelectedSegmentInitSegmentUri] = useState<string | null>(null)
+  const [selectedSegmentKeyMethod, setSelectedSegmentKeyMethod] = useState<string | null>(null)
+  const [selectedSegmentKeyUri, setSelectedSegmentKeyUri] = useState<string | null>(null)
+  const [selectedSegmentKeyIV, setSelectedSegmentKeyIV] = useState<string | null>(null)
+  const [selectedSegmentKeyFormat, setSelectedSegmentKeyFormat] = useState<string | null>(null)
+  const [selectedSegmentKeyFormatVersions, setSelectedSegmentKeyFormatVersions] = useState<string | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const mediaCount = detail?.result?.media_playlists?.length ?? 0
   const segmentVariantIndex = Math.min(selectedSegmentVariantIndex, Math.max(0, mediaCount - 1))
@@ -76,6 +82,12 @@ function App() {
     setSelectedPlaylistVariantIndex(0)
     setSelectedSegmentUrl(null)
     setSelectedSegmentDuration(null)
+    setSelectedSegmentInitSegmentUri(null)
+    setSelectedSegmentKeyMethod(null)
+    setSelectedSegmentKeyUri(null)
+    setSelectedSegmentKeyIV(null)
+    setSelectedSegmentKeyFormat(null)
+    setSelectedSegmentKeyFormatVersions(null)
     setView("inspect")
     const result = lastResultByStreamId[id]
     setDetail({ ...stream, result: result ?? null })
@@ -90,7 +102,7 @@ function App() {
   streamsRef.current = streams
   const streamIds = streams.map((s) => s.id).sort().join(",")
   useEffect(() => {
-    if (streams.length === 0) return
+    if (!streamIds) return
     const runPoll = async () => {
       const list = streamsRef.current
       for (const stream of list) {
@@ -377,7 +389,25 @@ function App() {
         {view === "inspect" && detail && (
           <>
             <div className="p-3 sm:p-4 min-h-[4.5rem] flex flex-wrap items-center gap-2 sm:gap-4 border-b border-border">
-              <Button variant="outline" size="sm" className="min-h-[44px] touch-manipulation shrink-0" onClick={() => { setView("streams"); setSelectedId(null); setDetail(null); setPlayUrl(null); setSelectedSegmentUrl(null); setSelectedSegmentDuration(null) }}>
+              <Button
+                variant="outline"
+                size="sm"
+                className="min-h-[44px] touch-manipulation shrink-0"
+                onClick={() => {
+                  setView("streams")
+                  setSelectedId(null)
+                  setDetail(null)
+                  setPlayUrl(null)
+                  setSelectedSegmentUrl(null)
+                  setSelectedSegmentDuration(null)
+                  setSelectedSegmentInitSegmentUri(null)
+                  setSelectedSegmentKeyMethod(null)
+                  setSelectedSegmentKeyUri(null)
+                    setSelectedSegmentKeyIV(null)
+                    setSelectedSegmentKeyFormat(null)
+                    setSelectedSegmentKeyFormatVersions(null)
+                }}
+              >
                 <ArrowLeft className="h-4 w-4 mr-1 shrink-0" />
                 Back
               </Button>
@@ -392,14 +422,35 @@ function App() {
               {/* Left: video + variant — full width on mobile, 65% on lg+ */}
               <div className="w-full lg:w-[65%] shrink-0 flex flex-col border-b lg:border-b-0 lg:border-r border-border bg-muted/20 p-4 gap-3">
                 <div className="rounded-lg overflow-hidden bg-black w-full aspect-video max-h-[45vh] sm:max-h-[55vh] lg:max-h-[70vh] min-h-[200px] lg:min-h-[240px] flex items-center justify-center shrink-0">
-                  <HlsPlayer src={playUrl} segmentSrc={selectedSegmentUrl} segmentDuration={selectedSegmentDuration} autoPlay className="w-full h-full object-contain" />
+                  <HlsPlayer
+                    src={playUrl}
+                    segmentSrc={selectedSegmentUrl}
+                    segmentDuration={selectedSegmentDuration}
+                    segmentInitSegmentUri={selectedSegmentInitSegmentUri}
+                    segmentKeyMethod={selectedSegmentKeyMethod}
+                    segmentKeyUri={selectedSegmentKeyUri}
+                    segmentKeyIV={selectedSegmentKeyIV}
+                    segmentKeyFormat={selectedSegmentKeyFormat}
+                    segmentKeyFormatVersions={selectedSegmentKeyFormatVersions}
+                    autoPlay
+                    className="w-full h-full object-contain"
+                  />
                 </div>
                 {selectedSegmentUrl && (
                   <div className="flex items-center gap-2 flex-wrap">
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => { setSelectedSegmentUrl(null); setSelectedSegmentDuration(null) }}
+                      onClick={() => {
+                        setSelectedSegmentUrl(null)
+                        setSelectedSegmentDuration(null)
+                        setSelectedSegmentInitSegmentUri(null)
+                        setSelectedSegmentKeyMethod(null)
+                        setSelectedSegmentKeyUri(null)
+                        setSelectedSegmentKeyIV(null)
+                        setSelectedSegmentKeyFormat(null)
+                        setSelectedSegmentKeyFormatVersions(null)
+                      }}
                     >
                       Back to full HLS
                     </Button>
@@ -411,7 +462,17 @@ function App() {
                     <Label className="text-sm shrink-0">Variant</Label>
                     <Select
                       value={playUrl ?? ""}
-                      onChange={(e) => { setPlayUrl(e.target.value || null); setSelectedSegmentUrl(null); setSelectedSegmentDuration(null) }}
+                      onChange={(e) => {
+                        setPlayUrl(e.target.value || null)
+                        setSelectedSegmentUrl(null)
+                        setSelectedSegmentDuration(null)
+                        setSelectedSegmentInitSegmentUri(null)
+                        setSelectedSegmentKeyMethod(null)
+                        setSelectedSegmentKeyUri(null)
+                        setSelectedSegmentKeyIV(null)
+                        setSelectedSegmentKeyFormat(null)
+                        setSelectedSegmentKeyFormatVersions(null)
+                      }}
                       className="w-full"
                     >
                       {variants.map((v) => (
@@ -567,7 +628,17 @@ function App() {
                           <Label className="text-sm font-medium shrink-0">Variant</Label>
                           <Select
                             value={String(segmentVariantIndex)}
-                            onChange={(e) => { setSelectedSegmentVariantIndex(Number(e.target.value)); setSelectedSegmentUrl(null); setSelectedSegmentDuration(null) }}
+                            onChange={(e) => {
+                              setSelectedSegmentVariantIndex(Number(e.target.value))
+                              setSelectedSegmentUrl(null)
+                              setSelectedSegmentDuration(null)
+                              setSelectedSegmentInitSegmentUri(null)
+                              setSelectedSegmentKeyMethod(null)
+                              setSelectedSegmentKeyUri(null)
+                              setSelectedSegmentKeyIV(null)
+                              setSelectedSegmentKeyFormat(null)
+                              setSelectedSegmentKeyFormatVersions(null)
+                            }}
                             className="max-w-xs"
                           >
                             {detail.result.master.playlists.map((p, i) => (
@@ -646,7 +717,16 @@ function App() {
                                         <tr
                                           key={displayIndex}
                                           className={`border-b border-border cursor-pointer hover:bg-muted/50 active:bg-muted/70 min-h-[44px] ${isSelected ? "bg-primary/10" : ""}`}
-                                          onClick={() => { setSelectedSegmentUrl(seg.uri); setSelectedSegmentDuration(seg.duration) }}
+                                          onClick={() => {
+                                            setSelectedSegmentUrl(seg.uri)
+                                            setSelectedSegmentDuration(seg.duration)
+                                            setSelectedSegmentInitSegmentUri(mp.init_segment?.uri ?? null)
+                                            setSelectedSegmentKeyMethod(mp.encryption?.method ?? null)
+                                            setSelectedSegmentKeyUri(mp.encryption?.uri ?? null)
+                                            setSelectedSegmentKeyIV(mp.encryption?.iv ?? null)
+                                            setSelectedSegmentKeyFormat(mp.encryption?.keyFormat ?? null)
+                                            setSelectedSegmentKeyFormatVersions(mp.encryption?.keyFormatVersions ?? null)
+                                          }}
                                         >
                                           <td className="py-2 sm:py-1">{displayIndex}</td>
                                           <td className="py-2 sm:py-1">{seg.duration}</td>

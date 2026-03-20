@@ -53,7 +53,13 @@ export type InspectResult = {
     media_sequence?: number
     segments?: { uri: string; duration: number; discontinuity?: boolean }[]
     raw?: string
-    encryption?: { method: string; uri?: string }
+    encryption?: {
+      method: string
+      uri?: string
+      iv?: string
+      keyFormat?: string
+      keyFormatVersions?: string
+    }
     init_segment?: { uri: string }
     segment_format?: "ts" | "fmp4"
   }[]
@@ -83,7 +89,10 @@ export function loadStreams(): Stream[] {
 export function saveStreams(streams: Stream[]): void {
   try {
     localStorage.setItem(STREAMS_KEY, JSON.stringify(streams))
-  } catch (_) {}
+  } catch (err) {
+    // LocalStorage can fail (e.g. privacy mode/quota). Not critical for playback/inspection.
+    void err
+  }
 }
 
 export function addStream(streams: Stream[], url: string, label: string | null): Stream[] {

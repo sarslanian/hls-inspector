@@ -7,7 +7,6 @@ import { parseMaster, parseMedia, isMasterPlaylist, parseExtXMediaFromRaw } from
 
 const FETCH_HEADERS: HeadersInit = {
   Accept: "application/vnd.apple.mpegurl,*/*",
-  "User-Agent": "Lavf/60.3.100",
 }
 
 export type FetchResult = {
@@ -34,7 +33,13 @@ export type MediaPlaylistResult = {
   segments: { uri: string; duration: number; discontinuity?: boolean }[]
   raw?: string
   raw_lines?: string[]
-  encryption?: { method: string; uri?: string }
+  encryption?: {
+    method: string
+    uri?: string
+    iv?: string
+    keyFormat?: string
+    keyFormatVersions?: string
+  }
   init_segment?: { uri: string }
   segment_format?: "ts" | "fmp4"
 }
