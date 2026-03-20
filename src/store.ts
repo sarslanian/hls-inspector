@@ -83,7 +83,10 @@ export function loadStreams(): Stream[] {
 export function saveStreams(streams: Stream[]): void {
   try {
     localStorage.setItem(STREAMS_KEY, JSON.stringify(streams))
-  } catch (_) {}
+  } catch (err) {
+    // LocalStorage can fail (e.g. privacy mode/quota). Not critical for playback/inspection.
+    void err
+  }
 }
 
 export function addStream(streams: Stream[], url: string, label: string | null): Stream[] {
