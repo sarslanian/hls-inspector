@@ -10,6 +10,7 @@ import {
   loadStreams as loadStreamsFromStorage,
   addStream as addStreamToStore,
   removeStream as removeStreamFromStore,
+  renameStream as renameStreamInStore,
   runInspect,
   streamStateFromResult,
   trimEvents,
@@ -19,7 +20,7 @@ import {
   type InspectResult,
 } from "./store"
 import { streamDisplayName } from "@/lib/utils"
-import { Radio, AlertCircle, List, ArrowLeft, Download, Menu, X, Copy, Check } from "lucide-react"
+import { Radio, AlertCircle, List, ArrowLeft, Download, Menu, X, Copy, Check, Pencil } from "lucide-react"
 
 type View = "streams" | "issues" | "inspect"
 
@@ -88,6 +89,8 @@ function App() {
   const [selectedSegmentKeyFormat, setSelectedSegmentKeyFormat] = useState<string | null>(null)
   const [selectedSegmentKeyFormatVersions, setSelectedSegmentKeyFormatVersions] = useState<string | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [renamingId, setRenamingId] = useState<string | null>(null)
+  const [renameValue, setRenameValue] = useState("")
   const mediaCount = detail?.result?.media_playlists?.length ?? 0
   const segmentVariantIndex = Math.min(selectedSegmentVariantIndex, Math.max(0, mediaCount - 1))
   const playlistVariantIndex = Math.min(selectedPlaylistVariantIndex, Math.max(0, mediaCount - 1))
@@ -436,9 +439,44 @@ function App() {
                 <ArrowLeft className="h-4 w-4 mr-1 shrink-0" />
                 Back
               </Button>
-              <h1 className="text-base sm:text-lg font-semibold truncate flex-1 min-w-0">
-                {streamDisplayName(detail.url, detail.label)}
-              </h1>
+              {renamingId === detail.id ? (
+                <form
+                  className="flex items-center gap-2 flex-1 min-w-0"
+                  onSubmit={(e) => {
+                    e.preventDefault()
+                    const newLabel = renameValue.trim() || null
+                    setStreams((prev) => renameStreamInStore(prev, detail.id, newLabel))
+                    setDetail((d) => d ? { ...d, label: newLabel } : null)
+                    setRenamingId(null)
+                  }}
+                >
+                  <Input
+                    autoFocus
+                    value={renameValue}
+                    onChange={(e) => setRenameValue(e.target.value)}
+                    placeholder={streamDisplayName(detail.url, null)}
+                    className="text-base sm:text-sm flex-1 min-w-0 h-9"
+                    onKeyDown={(e) => { if (e.key === "Escape") setRenamingId(null) }}
+                    onBlur={() => setRenamingId(null)}
+                  />
+                  <Button type="submit" size="sm" className="shrink-0 min-h-[36px]">Save</Button>
+                </form>
+              ) : (
+                <button
+                  type="button"
+                  className="flex items-center gap-2 flex-1 min-w-0 group text-left"
+                  title="Click to rename"
+                  onClick={() => {
+                    setRenamingId(detail.id)
+                    setRenameValue(detail.label ?? "")
+                  }}
+                >
+                  <h1 className="text-base sm:text-lg font-semibold truncate">
+                    {streamDisplayName(detail.url, detail.label)}
+                  </h1>
+                  <Pencil className="h-3.5 w-3.5 shrink-0 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                </button>
+              )}
               <CopyUrlButton url={detail.url} className="shrink-0" />
               <Button onClick={handleInspect} disabled={inspectLoading} className="min-h-[44px] touch-manipulation shrink-0">
                 {inspectLoading ? "Running…" : "Inspect now"}
