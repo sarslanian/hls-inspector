@@ -7,7 +7,6 @@ import { parseMaster, parseMedia, isMasterPlaylist, parseExtXMediaFromRaw } from
 
 const FETCH_HEADERS: HeadersInit = {
   Accept: "application/vnd.apple.mpegurl,*/*",
-  "User-Agent": "Lavf/60.3.100",
 }
 
 export type FetchResult = {
