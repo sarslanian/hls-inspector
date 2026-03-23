@@ -216,15 +216,64 @@ export type Scte35Entry = {
   type: string
   raw?: string
   duration_advertised?: number
+  /** `#EXT-X-CUE-OUT-CONT` — ElapsedTime= (seconds into break) */
+  elapsed_seconds?: number
+  /** `#EXT-X-CUE-OUT-CONT` — Duration= (total break length) */
+  cont_duration_seconds?: number
   advertised_seconds?: number
   actual_seconds?: number
   delta_seconds?: number
+  scte35_value?: string
+  /** Index in `fetchResult.media_playlists` (0 = first variant) */
+  source_variant_index?: number
+  /** Resolved media playlist URL this tag was read from */
+  source_playlist_uri?: string
+}
+
+/** Parse `#EXT-X-CUE-OUT-CONT` attributes without mistaking unrelated `Duration=`-like tokens on the same line. */
+function parseCueOutContLine(line: string): {
+  elapsed_seconds?: number
+  cont_duration_seconds?: number
+  scte35_value?: string
+} {
+  const rest = line.replace(/^#EXT-X-CUE-OUT-CONT:?\s*/i, "").trim()
+  const scteM = rest.match(/\bSCTE35=(?:"([^"]*)"|'([^']*)'|([^,\s]+))/)
+  let scte35_value: string | undefined
+  if (scteM) {
+    const raw35 = (scteM[1] ?? scteM[2] ?? scteM[3] ?? "").trim()
+    scte35_value = (raw35.startsWith("0x") || raw35.startsWith("0X") ? raw35.slice(2) : raw35) || undefined
+  }
+  let attrPart = rest
+  if (scteM) {
+    attrPart = rest.replace(scteM[0], "").replace(/^[,\s]+|[,\s]+$/g, "")
+  }
+  let elapsed_seconds: number | undefined
+  let cont_duration_seconds: number | undefined
+  for (const part of attrPart.split(",").map((p) => p.trim()).filter(Boolean)) {
+    const eq = part.indexOf("=")
+    if (eq === -1) continue
+    const key = part.slice(0, eq).trim().toLowerCase()
+    const val = part.slice(eq + 1).trim()
+    if (key === "elapsedtime") {
+      const n = parseFloat(val)
+      if (!Number.isNaN(n)) elapsed_seconds = n
+    } else if (key === "duration") {
+      const n = parseFloat(val)
+      if (!Number.isNaN(n)) cont_duration_seconds = n
+    }
+  }
+  return { elapsed_seconds, cont_duration_seconds, scte35_value }
 }
 
 export function extractScte35(fetchResult: FetchResult): Scte35Entry[] {
   const out: Scte35Entry[] = []
-  for (const mp of fetchResult.media_playlists) {
+  for (let mpIdx = 0; mpIdx < fetchResult.media_playlists.length; mpIdx++) {
+    const mp = fetchResult.media_playlists[mpIdx]
     if (mp.error) continue
+    const src: Pick<Scte35Entry, "source_variant_index" | "source_playlist_uri"> = {
+      source_variant_index: mpIdx,
+      ...(mp.uri ? { source_playlist_uri: mp.uri } : {}),
+    }
     const rawLines = mp.raw_lines ?? (mp.raw ?? "").split("\n")
     const segments = mp.segments ?? []
     let advertisedDuration: number | undefined
@@ -249,6 +298,7 @@ export function extractScte35(fetchResult: FetchResult): Scte35Entry[] {
             advertised_seconds: advertisedDuration,
             actual_seconds: Math.round(actual * 100) / 100,
             delta_seconds: Math.round((actual - advertisedDuration) * 100) / 100,
+            ...src,
           })
         }
         cueOutIndex = undefined
@@ -256,19 +306,47 @@ export function extractScte35(fetchResult: FetchResult): Scte35Entry[] {
       }
       if (line.startsWith("#EXT-X-CUE-OUT") && !line.includes("CONT")) {
         const m = line.match(/DURATION=([\d.]+)/i)
-        out.push({ type: "CUE-OUT", duration_advertised: m ? parseFloat(m[1]) : undefined, raw: line })
+        const scteM = line.match(/SCTE35=(?:"([^"]*)"|'([^']*)'|([^\s,]+))/)
+        const raw35 = (scteM?.[1] ?? scteM?.[2] ?? scteM?.[3] ?? "").trim()
+        const scte35_value = (raw35.startsWith("0x") || raw35.startsWith("0X") ? raw35.slice(2) : raw35) || undefined
+        out.push({
+          type: "CUE-OUT",
+          duration_advertised: m ? parseFloat(m[1]) : undefined,
+          raw: line,
+          ...(scte35_value ? { scte35_value } : {}),
+          ...src,
+        })
       }
       if (line.startsWith("#EXT-X-CUE-OUT-CONT")) {
-        out.push({ type: "CUE-OUT-CONT", raw: line })
+        const { elapsed_seconds, cont_duration_seconds, scte35_value } = parseCueOutContLine(line)
+        out.push({
+          type: "CUE-OUT-CONT",
+          raw: line,
+          ...(elapsed_seconds != null ? { elapsed_seconds } : {}),
+          ...(cont_duration_seconds != null ? { cont_duration_seconds } : {}),
+          ...(scte35_value ? { scte35_value } : {}),
+          ...src,
+        })
       }
       if (line.startsWith("#EXT-X-CUE-IN")) {
-        out.push({ type: "CUE-IN", raw: line })
+        out.push({ type: "CUE-IN", raw: line, ...src })
       }
       if (line.startsWith("#EXT-X-DATERANGE")) {
-        out.push({ type: "DATERANGE", raw: line })
+        // Match any SCTE35-* attribute (SCTE35-OUT, SCTE35-IN, SCTE35-CMD, etc.)
+        // Value may be quoted or unquoted hex/base64
+        const scteM = line.match(/SCTE35-[A-Za-z]+=(?:"([^"]*)"|'([^']*)'|(0x[0-9a-fA-F]+)|([A-Za-z0-9+/=]+))/)
+        let scte35_value: string | undefined
+        if (scteM) {
+          const raw35 = (scteM[1] ?? scteM[2] ?? scteM[3] ?? scteM[4] ?? "").trim()
+          // Strip 0x prefix — parser expects plain hex or base64
+          scte35_value = (raw35.startsWith("0x") || raw35.startsWith("0X") ? raw35.slice(2) : raw35) || undefined
+        }
+        out.push({ type: "DATERANGE", raw: line, ...(scte35_value ? { scte35_value } : {}), ...src })
       }
       if (line.startsWith("#EXT-OATCLS-SCTE35:")) {
-        out.push({ type: "OATCLS-SCTE35", raw: line })
+        const raw35 = line.slice("#EXT-OATCLS-SCTE35:".length).trim()
+        const scte35_value = (raw35.startsWith("0x") || raw35.startsWith("0X") ? raw35.slice(2) : raw35) || undefined
+        out.push({ type: "OATCLS-SCTE35", raw: line, ...(scte35_value ? { scte35_value } : {}), ...src })
       }
     }
   }

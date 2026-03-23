@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select } from "@/components/ui/select"
 import { HlsPlayer } from "@/components/HlsPlayer"
+import { Scte35CuePanel } from "@/components/Scte35CuePanel"
 import {
   loadStreams as loadStreamsFromStorage,
   addStream as addStreamToStore,
@@ -864,30 +865,7 @@ function App() {
                   </TabsContent>
                   <TabsContent value="scte35" className="mt-0 overflow-auto min-h-0">
                     {detail.result?.scte35?.length ? (
-                      <table className="w-full text-sm border-collapse">
-                        <thead>
-                          <tr className="border-b border-border">
-                            <th className="text-left py-2">Type</th>
-                            <th className="text-left py-2">Details</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {detail.result.scte35.map((s, i) => (
-                            <tr key={i} className="border-b border-border">
-                              <td className="py-2">
-                                <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-muted">
-                                  {s.type}
-                                </span>
-                              </td>
-                              <td className="py-2">
-                                {s.advertised_seconds != null
-                                  ? `Advertised: ${s.advertised_seconds}s, Actual: ${s.actual_seconds}s, Delta: ${s.delta_seconds}s`
-                                  : s.raw ?? ""}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                      <Scte35CuePanel entries={detail.result.scte35} />
                     ) : (
                       <p className="text-sm text-muted-foreground">No SCTE-35 cues in this snapshot.</p>
                     )}
