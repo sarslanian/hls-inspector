@@ -270,12 +270,20 @@ export function extractScte35(fetchResult: FetchResult): Scte35Entry[] {
         out.push({ type: "CUE-IN", raw: line })
       }
       if (line.startsWith("#EXT-X-DATERANGE")) {
-        const scteM = line.match(/SCTE35-CMD=["']?([^,"'\s]+)["']?/)
-        const scte35_value = scteM?.[1] || undefined
+        // Match any SCTE35-* attribute: SCTE35-CMD, SCTE35-OUT, SCTE35-IN, etc.
+        const scteM = line.match(/SCTE35-[A-Z]+=(0x[0-9a-fA-F]+|"[^"]+"|'[^']+')/)
+        let scte35_value: string | undefined
+        if (scteM) {
+          const raw35 = scteM[1].replace(/^["']|["']$/g, "").trim()
+          // Strip 0x prefix — parser expects plain hex or base64
+          scte35_value = raw35.startsWith("0x") || raw35.startsWith("0X") ? raw35.slice(2) : raw35
+          scte35_value = scte35_value || undefined
+        }
         out.push({ type: "DATERANGE", raw: line, ...(scte35_value ? { scte35_value } : {}) })
       }
       if (line.startsWith("#EXT-OATCLS-SCTE35:")) {
-        const scte35_value = line.slice("#EXT-OATCLS-SCTE35:".length).trim() || undefined
+        const raw35 = line.slice("#EXT-OATCLS-SCTE35:".length).trim()
+        const scte35_value = (raw35.startsWith("0x") || raw35.startsWith("0X") ? raw35.slice(2) : raw35) || undefined
         out.push({ type: "OATCLS-SCTE35", raw: line, ...(scte35_value ? { scte35_value } : {}) })
       }
     }
