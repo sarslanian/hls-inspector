@@ -257,27 +257,29 @@ export function extractScte35(fetchResult: FetchResult): Scte35Entry[] {
       }
       if (line.startsWith("#EXT-X-CUE-OUT") && !line.includes("CONT")) {
         const m = line.match(/DURATION=([\d.]+)/i)
-        const scteM = line.match(/SCTE35=["']?([^,"'\s]+)["']?/)
-        const scte35_value = scteM?.[1] || undefined
+        const scteM = line.match(/SCTE35=(?:"([^"]*)"|'([^']*)'|([^\s,]+))/)
+        const raw35 = (scteM?.[1] ?? scteM?.[2] ?? scteM?.[3] ?? "").trim()
+        const scte35_value = (raw35.startsWith("0x") || raw35.startsWith("0X") ? raw35.slice(2) : raw35) || undefined
         out.push({ type: "CUE-OUT", duration_advertised: m ? parseFloat(m[1]) : undefined, raw: line, ...(scte35_value ? { scte35_value } : {}) })
       }
       if (line.startsWith("#EXT-X-CUE-OUT-CONT")) {
-        const scteM = line.match(/SCTE35=["']?([^,"'\s]+)["']?/)
-        const scte35_value = scteM?.[1] || undefined
+        const scteM = line.match(/SCTE35=(?:"([^"]*)"|'([^']*)'|([^\s,]+))/)
+        const raw35 = (scteM?.[1] ?? scteM?.[2] ?? scteM?.[3] ?? "").trim()
+        const scte35_value = (raw35.startsWith("0x") || raw35.startsWith("0X") ? raw35.slice(2) : raw35) || undefined
         out.push({ type: "CUE-OUT-CONT", raw: line, ...(scte35_value ? { scte35_value } : {}) })
       }
       if (line.startsWith("#EXT-X-CUE-IN")) {
         out.push({ type: "CUE-IN", raw: line })
       }
       if (line.startsWith("#EXT-X-DATERANGE")) {
-        // Match any SCTE35-* attribute: SCTE35-CMD, SCTE35-OUT, SCTE35-IN, etc.
-        const scteM = line.match(/SCTE35-[A-Z]+=(0x[0-9a-fA-F]+|"[^"]+"|'[^']+')/)
+        // Match any SCTE35-* attribute (SCTE35-OUT, SCTE35-IN, SCTE35-CMD, etc.)
+        // Value may be quoted or unquoted hex/base64
+        const scteM = line.match(/SCTE35-[A-Za-z]+=(?:"([^"]*)"|'([^']*)'|(0x[0-9a-fA-F]+)|([A-Za-z0-9+/=]+))/)
         let scte35_value: string | undefined
         if (scteM) {
-          const raw35 = scteM[1].replace(/^["']|["']$/g, "").trim()
+          const raw35 = (scteM[1] ?? scteM[2] ?? scteM[3] ?? scteM[4] ?? "").trim()
           // Strip 0x prefix — parser expects plain hex or base64
-          scte35_value = raw35.startsWith("0x") || raw35.startsWith("0X") ? raw35.slice(2) : raw35
-          scte35_value = scte35_value || undefined
+          scte35_value = (raw35.startsWith("0x") || raw35.startsWith("0X") ? raw35.slice(2) : raw35) || undefined
         }
         out.push({ type: "DATERANGE", raw: line, ...(scte35_value ? { scte35_value } : {}) })
       }
