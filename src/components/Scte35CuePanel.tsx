@@ -1,9 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react"
+import { useVirtualizer, measureElement } from "@tanstack/react-virtual"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import type { Scte35Entry } from "@/lib/inspect"
 import { Check, ChevronDown, Copy, ExternalLink } from "lucide-react"
+
+/** Window long cue lists; below this we render a plain stack (no scroll container). */
+const VIRTUAL_LIST_THRESHOLD = 48
 
 function formatSec(n: number): string {
   if (!Number.isFinite(n)) return String(n)
@@ -18,22 +22,35 @@ function payloadPreview(s: string, max = 72): { short: string; truncated: boolea
 
 function CopyTextButton({ text, label }: { text: string; label: string }) {
   const [done, setDone] = useState(false)
+  const [failed, setFailed] = useState(false)
   return (
-    <Button
-      type="button"
-      variant="outline"
-      size="sm"
-      className="h-8 gap-1.5 text-xs"
-      onClick={() => {
-        void navigator.clipboard.writeText(text).then(() => {
-          setDone(true)
-          setTimeout(() => setDone(false), 2000)
-        })
-      }}
-    >
-      {done ? <Check className="h-3.5 w-3.5 text-green-500" /> : <Copy className="h-3.5 w-3.5" />}
-      {done ? "Copied" : label}
-    </Button>
+    <div className="relative inline-flex flex-col items-stretch">
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="h-8 gap-1.5 text-xs"
+        onClick={() => {
+          void navigator.clipboard.writeText(text).then(
+            () => {
+              setFailed(false)
+              setDone(true)
+              setTimeout(() => setDone(false), 2000)
+            },
+            () => {
+              setFailed(true)
+              setTimeout(() => setFailed(false), 2800)
+            }
+          )
+        }}
+      >
+        {done ? <Check className="h-3.5 w-3.5 text-green-500" /> : <Copy className="h-3.5 w-3.5" />}
+        {failed ? "Copy failed" : done ? "Copied" : label}
+      </Button>
+      <span className="sr-only" aria-live="polite">
+        {failed ? "Copy to clipboard failed." : done ? "Copied to clipboard." : ""}
+      </span>
+    </div>
   )
 }
 
@@ -71,6 +88,26 @@ function Scte35Card({
             <span className="inline-flex max-w-full shrink-0 rounded-md bg-muted px-2 py-0.5 text-xs font-semibold tracking-tight">
               {type}
             </span>
+            {(entry.source_variant_index != null || entry.source_playlist_uri) && (
+              <span
+                className="max-w-full truncate text-[10px] text-muted-foreground"
+                title={
+                  entry.source_playlist_uri
+                    ? `Variant ${entry.source_variant_index ?? "?"} · ${entry.source_playlist_uri}`
+                    : `Variant ${entry.source_variant_index ?? "?"}`
+                }
+              >
+                {entry.source_playlist_uri ? (
+                  <>
+                    <span className="font-mono tabular-nums">v{entry.source_variant_index ?? "?"}</span>
+                    <span className="mx-1 opacity-60">·</span>
+                    <span className="break-all">{entry.source_playlist_uri}</span>
+                  </>
+                ) : (
+                  <span className="font-mono tabular-nums">Variant {entry.source_variant_index}</span>
+                )}
+              </span>
+            )}
             {type === "AD_DURATION" && entry.advertised_seconds != null && (
               <span className="text-xs text-muted-foreground">
                 Compares playlist segment sum to CUE-OUT duration
@@ -190,6 +227,20 @@ function TypeFilterDropdown({
     return () => document.removeEventListener("mousedown", close)
   }, [open])
 
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault()
+        e.stopPropagation()
+        setOpen(false)
+        document.getElementById("scte35-type-filter")?.focus()
+      }
+    }
+    document.addEventListener("keydown", onKey)
+    return () => document.removeEventListener("keydown", onKey)
+  }, [open])
+
   const toggle = (t: string) => {
     const next = new Set(selected)
     if (next.has(t)) next.delete(t)
@@ -211,7 +262,7 @@ function TypeFilterDropdown({
         id="scte35-type-filter"
         className="h-9 w-full justify-between gap-2 font-normal"
         aria-expanded={open}
-        aria-haspopup="listbox"
+        aria-haspopup="true"
         aria-controls="scte35-type-filter-list"
         onClick={() => setOpen((o) => !o)}
       >
@@ -221,10 +272,14 @@ function TypeFilterDropdown({
       {open && (
         <div
           id="scte35-type-filter-list"
-          role="listbox"
-          aria-multiselectable="true"
+          role="group"
+          aria-labelledby="scte35-type-filter"
+          aria-describedby="scte35-type-filter-hint"
           className="absolute left-0 right-0 z-30 mt-1 max-h-64 overflow-auto rounded-md border border-border bg-card py-1 shadow-lg"
         >
+          <p id="scte35-type-filter-hint" className="sr-only">
+            Use checkboxes to include or exclude cue tag types. Press Escape to close.
+          </p>
           {types.map((t) => (
             <label
               key={t}
@@ -253,20 +308,57 @@ function TypeFilterDropdown({
   )
 }
 
-export function Scte35CuePanel({ entries }: { entries: Scte35Entry[] }) {
-  /** Last line in playlist ≈ most recent; show newest first */
-  const reverseChrono = useMemo(() => [...entries].reverse(), [entries])
+/** Isolated so React Compiler does not treat TanStack Virtual as incompatible with the parent panel. */
+function VirtualizedScteCueList({ filtered }: { filtered: Scte35Entry[] }) {
+  const scrollParentRef = useRef<HTMLDivElement>(null)
+  /* eslint-disable react-hooks/incompatible-library -- TanStack Virtual intentionally returns non-memoizable refs */
+  const virtualizer = useVirtualizer({
+    count: filtered.length,
+    getScrollElement: () => scrollParentRef.current,
+    estimateSize: () => 200,
+    measureElement,
+    overscan: 8,
+    getItemKey: (index) => {
+      const e = filtered[index]
+      return `${e.source_variant_index ?? 0}-${e.type}-${index}-${e.raw?.slice(0, 80) ?? ""}`
+    },
+  })
+  /* eslint-enable react-hooks/incompatible-library */
 
-  const uniqueTypes = useMemo(() => [...new Set(entries.map((e) => e.type))].sort((a, b) => a.localeCompare(b)), [entries])
+  return (
+    <div
+      ref={scrollParentRef}
+      className="max-h-[min(70vh,560px)] overflow-auto rounded-lg border border-border/60 bg-muted/20 p-1"
+    >
+      <div className="relative w-full" style={{ height: virtualizer.getTotalSize() }}>
+        {virtualizer.getVirtualItems().map((vi) => {
+          const entry = filtered[vi.index]
+          return (
+            <div
+              key={vi.key}
+              data-index={vi.index}
+              ref={virtualizer.measureElement}
+              className="absolute left-0 right-0 top-0 px-1 pb-3"
+              style={{ transform: `translateY(${vi.start}px)` }}
+            >
+              <Scte35Card displayIndex={vi.index + 1} entry={entry} />
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
 
-  const typesKey = uniqueTypes.join("\0")
-
+function Scte35CuePanelBody({
+  reverseChrono,
+  uniqueTypes,
+}: {
+  reverseChrono: Scte35Entry[]
+  uniqueTypes: string[]
+}) {
   /** `null` = all types (default); explicit Set when user changes filter */
   const [typeFilter, setTypeFilter] = useState<Set<string> | null>(null)
-
-  useEffect(() => {
-    setTypeFilter(null)
-  }, [typesKey])
 
   const activeTypes = useMemo(() => typeFilter ?? new Set(uniqueTypes), [typeFilter, uniqueTypes])
 
@@ -274,6 +366,52 @@ export function Scte35CuePanel({ entries }: { entries: Scte35Entry[] }) {
     () => reverseChrono.filter((e) => activeTypes.has(e.type)),
     [reverseChrono, activeTypes]
   )
+
+  const useVirtualList = filtered.length >= VIRTUAL_LIST_THRESHOLD
+
+  return (
+    <>
+      {uniqueTypes.length > 0 && (
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+          <Label htmlFor="scte35-type-filter" className="shrink-0 text-xs font-medium text-muted-foreground sm:pt-1.5">
+            Tag types
+          </Label>
+          <TypeFilterDropdown
+            types={uniqueTypes}
+            selected={activeTypes}
+            onChange={setTypeFilter}
+          />
+        </div>
+      )}
+
+      {filtered.length === 0 ? (
+        <p className="rounded-lg border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground">
+          No cues match the selected types. Choose one or more types in the filter above.
+        </p>
+      ) : useVirtualList ? (
+        <VirtualizedScteCueList filtered={filtered} />
+      ) : (
+        <div className="space-y-3">
+          {filtered.map((entry, i) => (
+            <Scte35Card
+              key={`${entry.source_variant_index ?? 0}-${entry.type}-${i}-${entry.raw?.slice(0, 24) ?? ""}`}
+              displayIndex={i + 1}
+              entry={entry}
+            />
+          ))}
+        </div>
+      )}
+    </>
+  )
+}
+
+export function Scte35CuePanel({ entries }: { entries: Scte35Entry[] }) {
+  /** Last line in playlist ≈ most recent; show newest first */
+  const reverseChrono = useMemo(() => [...entries].reverse(), [entries])
+
+  const uniqueTypes = useMemo(() => [...new Set(entries.map((e) => e.type))].sort((a, b) => a.localeCompare(b)), [entries])
+
+  const typesKey = uniqueTypes.join("\0")
 
   const summary = useMemo(() => {
     const counts = new Map<string, number>()
@@ -298,30 +436,7 @@ export function Scte35CuePanel({ entries }: { entries: Scte35Entry[] }) {
         <p className="text-xs text-muted-foreground/80">Newest tags first (reverse playlist order).</p>
       </div>
 
-      {uniqueTypes.length > 0 && (
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
-          <Label htmlFor="scte35-type-filter" className="shrink-0 text-xs font-medium text-muted-foreground sm:pt-1.5">
-            Tag types
-          </Label>
-          <TypeFilterDropdown
-            types={uniqueTypes}
-            selected={activeTypes}
-            onChange={setTypeFilter}
-          />
-        </div>
-      )}
-
-      {filtered.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground">
-          No cues match the selected types. Choose one or more types in the filter above.
-        </p>
-      ) : (
-        <div className="space-y-3">
-          {filtered.map((entry, i) => (
-            <Scte35Card key={`${entry.type}-${i}-${entry.raw?.slice(0, 24) ?? ""}`} displayIndex={i + 1} entry={entry} />
-          ))}
-        </div>
-      )}
+      <Scte35CuePanelBody key={typesKey} reverseChrono={reverseChrono} uniqueTypes={uniqueTypes} />
     </div>
   )
 }
