@@ -3,7 +3,7 @@
  * No server — inspect runs in the browser via fetch + parse + checks.
  */
 
-import { fetchAndParse, runHealthChecks, extractScte35 } from "@/lib/inspect"
+import { fetchAndParse, runHealthChecks, extractScte35, type Scte35Entry } from "@/lib/inspect"
 
 const STREAMS_KEY = "hls-inspector-streams"
 const MAX_EVENTS = 200
@@ -64,7 +64,7 @@ export type InspectResult = {
     segment_format?: "ts" | "fmp4"
   }[]
   checks?: { status: string; events: { kind: string; message: string; severity: string }[] }
-  scte35?: { type: string; raw?: string; duration_advertised?: number; advertised_seconds?: number; actual_seconds?: number; delta_seconds?: number }[]
+  scte35?: Scte35Entry[]
   /** Captions from fallback parse when master had none or URL was media playlist */
   captions?: { type: string; name?: string; language?: string; uri?: string; groupId?: string }[]
 }

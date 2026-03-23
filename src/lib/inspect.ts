@@ -216,6 +216,10 @@ export type Scte35Entry = {
   type: string
   raw?: string
   duration_advertised?: number
+  /** `#EXT-X-CUE-OUT-CONT` — ElapsedTime= (seconds into break) */
+  elapsed_seconds?: number
+  /** `#EXT-X-CUE-OUT-CONT` — Duration= (total break length) */
+  cont_duration_seconds?: number
   advertised_seconds?: number
   actual_seconds?: number
   delta_seconds?: number
@@ -266,7 +270,17 @@ export function extractScte35(fetchResult: FetchResult): Scte35Entry[] {
         const scteM = line.match(/SCTE35=(?:"([^"]*)"|'([^']*)'|([^\s,]+))/)
         const raw35 = (scteM?.[1] ?? scteM?.[2] ?? scteM?.[3] ?? "").trim()
         const scte35_value = (raw35.startsWith("0x") || raw35.startsWith("0X") ? raw35.slice(2) : raw35) || undefined
-        out.push({ type: "CUE-OUT-CONT", raw: line, ...(scte35_value ? { scte35_value } : {}) })
+        const elapsedM = line.match(/ElapsedTime=([\d.]+)/i)
+        const contDurM = line.match(/Duration=([\d.]+)/i)
+        const elapsed_seconds = elapsedM ? parseFloat(elapsedM[1]) : undefined
+        const cont_duration_seconds = contDurM ? parseFloat(contDurM[1]) : undefined
+        out.push({
+          type: "CUE-OUT-CONT",
+          raw: line,
+          ...(elapsed_seconds != null ? { elapsed_seconds } : {}),
+          ...(cont_duration_seconds != null ? { cont_duration_seconds } : {}),
+          ...(scte35_value ? { scte35_value } : {}),
+        })
       }
       if (line.startsWith("#EXT-X-CUE-IN")) {
         out.push({ type: "CUE-IN", raw: line })
