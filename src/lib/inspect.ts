@@ -219,6 +219,7 @@ export type Scte35Entry = {
   advertised_seconds?: number
   actual_seconds?: number
   delta_seconds?: number
+  scte35_value?: string
 }
 
 export function extractScte35(fetchResult: FetchResult): Scte35Entry[] {
@@ -256,19 +257,26 @@ export function extractScte35(fetchResult: FetchResult): Scte35Entry[] {
       }
       if (line.startsWith("#EXT-X-CUE-OUT") && !line.includes("CONT")) {
         const m = line.match(/DURATION=([\d.]+)/i)
-        out.push({ type: "CUE-OUT", duration_advertised: m ? parseFloat(m[1]) : undefined, raw: line })
+        const scteM = line.match(/SCTE35=["']?([^,"'\s]+)["']?/)
+        const scte35_value = scteM?.[1] || undefined
+        out.push({ type: "CUE-OUT", duration_advertised: m ? parseFloat(m[1]) : undefined, raw: line, ...(scte35_value ? { scte35_value } : {}) })
       }
       if (line.startsWith("#EXT-X-CUE-OUT-CONT")) {
-        out.push({ type: "CUE-OUT-CONT", raw: line })
+        const scteM = line.match(/SCTE35=["']?([^,"'\s]+)["']?/)
+        const scte35_value = scteM?.[1] || undefined
+        out.push({ type: "CUE-OUT-CONT", raw: line, ...(scte35_value ? { scte35_value } : {}) })
       }
       if (line.startsWith("#EXT-X-CUE-IN")) {
         out.push({ type: "CUE-IN", raw: line })
       }
       if (line.startsWith("#EXT-X-DATERANGE")) {
-        out.push({ type: "DATERANGE", raw: line })
+        const scteM = line.match(/SCTE35-CMD=["']?([^,"'\s]+)["']?/)
+        const scte35_value = scteM?.[1] || undefined
+        out.push({ type: "DATERANGE", raw: line, ...(scte35_value ? { scte35_value } : {}) })
       }
       if (line.startsWith("#EXT-OATCLS-SCTE35:")) {
-        out.push({ type: "OATCLS-SCTE35", raw: line })
+        const scte35_value = line.slice("#EXT-OATCLS-SCTE35:".length).trim() || undefined
+        out.push({ type: "OATCLS-SCTE35", raw: line, ...(scte35_value ? { scte35_value } : {}) })
       }
     }
   }

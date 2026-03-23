@@ -20,7 +20,7 @@ import {
   type InspectResult,
 } from "./store"
 import { streamDisplayName } from "@/lib/utils"
-import { Radio, AlertCircle, List, ArrowLeft, Download, Menu, X, Copy, Check, Pencil } from "lucide-react"
+import { Radio, AlertCircle, List, ArrowLeft, Download, Menu, X, Copy, Check, Pencil, ExternalLink } from "lucide-react"
 
 type View = "streams" | "issues" | "inspect"
 
@@ -869,6 +869,7 @@ function App() {
                           <tr className="border-b border-border">
                             <th className="text-left py-2">Type</th>
                             <th className="text-left py-2">Details</th>
+                            <th className="text-left py-2">Decode</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -883,6 +884,19 @@ function App() {
                                 {s.advertised_seconds != null
                                   ? `Advertised: ${s.advertised_seconds}s, Actual: ${s.actual_seconds}s, Delta: ${s.delta_seconds}s`
                                   : s.raw ?? ""}
+                              </td>
+                              <td className="py-2">
+                                {s.scte35_value ? (
+                                  <a
+                                    href={`https://scte35.videotooling.com?cue=${encodeURIComponent(s.scte35_value)}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                                  >
+                                    <ExternalLink className="h-3 w-3" />
+                                    Decode
+                                  </a>
+                                ) : null}
                               </td>
                             </tr>
                           ))}
