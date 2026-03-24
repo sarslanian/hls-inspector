@@ -84,7 +84,8 @@ export type MediaPlaylist = {
 }
 
 export function parseMaster(text: string, baseUrl: string): MasterPlaylist | null {
-  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean)
+  const lines = text.split(/?
+/).map((l) => l.trim()).filter(Boolean)
   if (lines[0] !== "#EXTM3U") return null
   const playlists: MasterPlaylist["playlists"] = []
   const media: MasterPlaylist["media"] = []
@@ -145,7 +146,8 @@ export function parseMaster(text: string, baseUrl: string): MasterPlaylist | nul
 }
 
 export function parseMedia(text: string, baseUrl: string): MediaPlaylist {
-  const lines = text.split(/\r?\n/).map((l) => l.trim())
+  const lines = text.split(/?
+/).map((l) => l.trim())
   const rawLines = [...lines]
   const segments: MediaSegment[] = []
   let targetDuration = 0
@@ -207,10 +209,22 @@ export function parseMedia(text: string, baseUrl: string): MediaPlaylist {
     if (line.startsWith("#EXTINF:")) {
       const m = line.match(/#EXTINF:([\d.]+)/i)
       currentDuration = m ? parseFloat(m[1]) : 0
-      const next = lines[i + 1]
-      if (next && !next.startsWith("#")) {
+      // Scan forward past any interleaved tag lines (e.g. #EXT-X-PROGRAM-DATE-TIME between #EXTINF and the segment URI)
+      let segUri: string | undefined
+      for (let j = i + 1; j < lines.length; j++) {
+        const nextLine = lines[j]
+        if (!nextLine) continue
+        if (nextLine.startsWith("#EXT-X-PROGRAM-DATE-TIME:")) {
+          currentProgramDateTime = nextLine.replace(/^#EXT-X-PROGRAM-DATE-TIME:/i, "").trim()
+          continue
+        }
+        if (nextLine.startsWith("#")) break
+        segUri = nextLine
+        break
+      }
+      if (segUri) {
         segments.push({
-          uri: resolveUri(next, baseUrl),
+          uri: resolveUri(segUri, baseUrl),
           duration: currentDuration,
           discontinuity: currentDiscontinuity,
           programDateTime: currentProgramDateTime,
@@ -258,7 +272,8 @@ function unquote(s: string): string {
 
 /** Extract EXT-X-MEDIA lines from any manifest text (lenient, for captions fallback). */
 export function parseExtXMediaFromRaw(rawText: string, baseUrl: string): MasterPlaylistMedia[] {
-  const lines = rawText.split(/\r?\n/).map((l) => l.trim())
+  const lines = rawText.split(/?
+/).map((l) => l.trim())
   const out: MasterPlaylistMedia[] = []
   for (const line of lines) {
     if (!line.startsWith("#EXT-X-MEDIA")) continue
