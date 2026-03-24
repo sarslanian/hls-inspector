@@ -84,8 +84,7 @@ export type MediaPlaylist = {
 }
 
 export function parseMaster(text: string, baseUrl: string): MasterPlaylist | null {
-  const lines = text.split(/?
-/).map((l) => l.trim()).filter(Boolean)
+  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean)
   if (lines[0] !== "#EXTM3U") return null
   const playlists: MasterPlaylist["playlists"] = []
   const media: MasterPlaylist["media"] = []
@@ -146,8 +145,7 @@ export function parseMaster(text: string, baseUrl: string): MasterPlaylist | nul
 }
 
 export function parseMedia(text: string, baseUrl: string): MediaPlaylist {
-  const lines = text.split(/?
-/).map((l) => l.trim())
+  const lines = text.split(/\r?\n/).map((l) => l.trim())
   const rawLines = [...lines]
   const segments: MediaSegment[] = []
   let targetDuration = 0
@@ -272,8 +270,7 @@ function unquote(s: string): string {
 
 /** Extract EXT-X-MEDIA lines from any manifest text (lenient, for captions fallback). */
 export function parseExtXMediaFromRaw(rawText: string, baseUrl: string): MasterPlaylistMedia[] {
-  const lines = rawText.split(/?
-/).map((l) => l.trim())
+  const lines = rawText.split(/\r?\n/).map((l) => l.trim())
   const out: MasterPlaylistMedia[] = []
   for (const line of lines) {
     if (!line.startsWith("#EXT-X-MEDIA")) continue
